@@ -1,0 +1,12 @@
+{
+  "name": "Label Stapeldruck – Wego Systembaustoffe",
+  "short_name": "Stapeldruck",
+  "description": "Alle Artikel-Etiketten auf einmal drucken",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#4a0072",
+  "icons": [
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}
