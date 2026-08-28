@@ -106,7 +106,7 @@ async function loadData(){
     var n=artikel.length;
     setSt('load-status','✔ '+n.toLocaleString('de-DE')+' Artikel geladen','ok');
     document.getElementById('info-box').style.display='block';
-    document.getElementById('art-count').textContent=n.toLocaleString('de-DE')+' Artikel";
+    document.getElementById('art-count').textContent=n.toLocaleString('de-DE')+' Artikel';
     document.getElementById('art-detail').textContent='Alle Artikel werden in einem einzigen Druckjob gedruckt.';
     document.getElementById('btn-start').disabled=false;
   }catch(e){setSt('load-status','Fehler: '+e.message,'err');}
@@ -144,6 +144,7 @@ async function startPrint(){
 
   var fkey=document.querySelector('input[name="fmt"]:checked').value;
   var f=FMT[fkey];
+  var isKlein=(fkey==='klein');
   var total=artikel.length;
   var errors=[];
 
@@ -193,6 +194,7 @@ async function startPrint(){
       +'<div class="txt" data-art="'+hAttr(a.nr)+'">'
       +'<div class="art">'+hEsc(a.nr)+'</div>'+dHtml
       +'</div></div>'
+      +(isKlein?'':'<div class="brd"></div>')
       +(isLast?'':'<div style="page-break-after:always;"></div>')
       +'</div>';
     if(i%50===0){
@@ -205,13 +207,15 @@ async function startPrint(){
   if(cancelled)return;
 
   var pw=f.mmW+'mm',ph=f.mmH+'mm';
+  var pageW=isKlein?pw:'210mm';
+  var pageH=isKlein?ph:'297mm';
   var html='<!DOCTYPE html>\n<html lang="de"><head><meta charset="UTF-8">\n'
     +'<style>\n'
     +'*{box-sizing:border-box;margin:0;padding:0;}\n'
-    +'@page{size:'+pw+' '+ph+';margin:0;}\n'
+    +'@page{size:'+pageW+' '+pageH+';margin:0;}\n'
     +'html,body{background:white;}\n'
-    +'.page{width:'+pw+';height:'+ph+';overflow:hidden;}\n'
-    +'.wrap{width:'+pw+';height:'+ph+';display:flex;align-items:stretch;'
+    +'.page{position:relative;width:'+pageW+';height:'+pageH+';overflow:hidden;}\n'
+    +'.wrap{position:absolute;top:0;left:0;width:'+pw+';height:'+ph+';display:flex;align-items:stretch;'
     +'padding:'+f.padMm+'mm;gap:'+(f.padMm/2).toFixed(1)+'mm;background:white;font-family:Arial,sans-serif;}\n'
     +'.qsec{width:'+f.qrMm+'mm;min-width:'+f.qrMm+'mm;display:flex;align-items:center;justify-content:center;}\n'
     +'.qsec img{width:100%;height:100%;object-fit:contain;}\n'
@@ -220,6 +224,7 @@ async function startPrint(){
     +'overflow:hidden;padding-left:'+(f.padMm/2).toFixed(1)+'mm;gap:'+(f.padMm*.25).toFixed(1)+'mm;}\n'
     +'.art{font-weight:bold;line-height:1.1;overflow:hidden;white-space:nowrap;}\n'
     +'.dsc{line-height:1.25;color:#222;overflow:hidden;white-space:nowrap;}\n'
+    +'.brd{position:absolute;top:0;left:0;width:'+pw+';height:'+ph+';border:.3mm solid #bbb;pointer-events:none;}\n'
     +'<\/style><\/head>\n<body>\n'+pages+'\n'
     +'<script>\n'
     +'window.addEventListener("load",function(){\n'
