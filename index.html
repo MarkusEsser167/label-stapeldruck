@@ -85,7 +85,7 @@ var FMT={
   mittel:{mmW:210,  mmH:90,    padMm:6, qrMm:40},
   gross: {mmW:210,  mmH:148.5, padMm:8, qrMm:50}
 };
-var ART_SHARE=0.40, LH_ART=1.05, LH_DSC=1.25, SAFE=0.97;
+var ART_SHARE=0.40, LH_ART=1.05, LH_DSC=1.25, SAFE=0.97, RESERVE=1.5;
 
 var artikel=[],cancelled=false;
 
@@ -96,11 +96,14 @@ function widthRatio(txt,bold){
   return _cx.measureText(String(txt)).width/100;
 }
 
-/* Berechnet Layout + Schriftgroessen in Millimetern - unabhaengig von Fenstergroesse */
+/* Layout + Schriftgroessen in Millimetern - unabhaengig von Fenstergroesse.
+   RESERVE haelt etwas Breite frei, damit die Zeile nie ueberlaeuft
+   (ein Ueberlauf wuerde im Druck "An Seite anpassen" ausloesen). */
 function calcLayout(a,f){
   var gap=f.padMm/2;
   var dvd=0.3;
   var txtW=f.mmW-2*f.padMm-f.qrMm-2*gap-dvd;
+  var budget=txtW-RESERVE;
   var availH=f.mmH-2*f.padMm;
   var descs=[a.z1,a.z2,a.z3].filter(Boolean);
 
@@ -108,14 +111,14 @@ function calcLayout(a,f){
   var dscBox=availH*(1-ART_SHARE);
 
   var rA=widthRatio(a.nr,true);
-  var artFs=Math.min(artBox/LH_ART, rA>0?txtW/rA:artBox)*SAFE;
+  var artFs=Math.min(artBox/LH_ART, rA>0?budget/rA:artBox)*SAFE;
 
   var dscFs=0;
   if(descs.length){
     dscFs=(dscBox/descs.length)/LH_DSC;
     descs.forEach(function(t){
       var r=widthRatio(t,false);
-      if(r>0)dscFs=Math.min(dscFs,txtW/r);
+      if(r>0)dscFs=Math.min(dscFs,budget/r);
     });
     dscFs*=SAFE;
   }
@@ -243,13 +246,13 @@ async function startPrint(){
   var css=[
     '*{box-sizing:border-box;margin:0;padding:0;}',
     '@page{size:'+pageW+' '+pageH+';margin:0;}',
-    'html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}',
+    'html,body{margin:0;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}',
     '.page{position:relative;width:'+pageW+';height:'+pageH+';overflow:hidden;}',
-    '.wrap{position:absolute;top:0;left:0;width:'+f.mmW+'mm;height:'+f.mmH+'mm;display:flex;align-items:center;padding:'+f.padMm+'mm;background:#fff;font-family:Arial,Helvetica,sans-serif;}',
+    '.wrap{position:absolute;top:0;left:0;width:'+f.mmW+'mm;height:'+f.mmH+'mm;display:flex;align-items:center;padding:'+f.padMm+'mm;background:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;}',
     '.qsec{width:'+f.qrMm+'mm;height:'+f.qrMm+'mm;flex:0 0 '+f.qrMm+'mm;}',
     '.qsec img{width:100%;height:100%;display:block;}',
     '.dvd{width:'+L0.dvd+'mm;align-self:stretch;background:#999;margin:0 '+L0.gap+'mm;flex:0 0 auto;}',
-    '.txt{width:'+L0.txtW.toFixed(2)+'mm;overflow:hidden;}',
+    '.txt{flex:1 1 auto;min-width:0;overflow:hidden;}',
     '.art{font-weight:bold;line-height:'+LH_ART+';white-space:nowrap;}',
     '.dsc{line-height:'+LH_DSC+';color:#222;white-space:nowrap;}',
     '.brd{position:absolute;top:0;left:0;width:'+f.mmW+'mm;height:'+f.mmH+'mm;border:.3mm solid #bbb;pointer-events:none;}'
