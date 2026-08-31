@@ -82,8 +82,8 @@ body{font-family:Arial,sans-serif;background:#f0f0f0;min-height:100vh;}
 <script>
 var FMT={
   klein: {mmW:57,   mmH:31,    padMm:3, qrMm:24},
-  mittel:{mmW:210,  mmH:90,    padMm:6, qrMm:72},
-  gross: {mmW:210,  mmH:148.5, padMm:8, qrMm:90}
+  mittel:{mmW:210,  mmH:90,    padMm:6, qrMm:40},
+  gross: {mmW:210,  mmH:148.5, padMm:8, qrMm:50}
 };
 
 var artikel=[],cancelled=false;
@@ -236,12 +236,12 @@ async function startPrint(){
     +'    var tw=txt.offsetWidth-padL-padR-2,th=txt.offsetHeight;\n'
     +'    var art=txt.querySelector(".art");\n'
     +'    var dscs=[].slice.call(txt.querySelectorAll(".dsc"));\n'
-    +'    var aH=th*.38,dH=dscs.length?(th*.62)/dscs.length:0;\n'
-    +'    var fs=Math.round(th*.7);\n'
+    +'    var aH=th*.44,dH=dscs.length?(th*.56)/dscs.length:0;\n'
+    +'    var fs=Math.round(th*.85);\n'
     +'    art.style.fontSize=fs+"px";\n'
     +'    while(fs>7&&(art.scrollWidth>tw||art.offsetHeight>aH)){fs--;art.style.fontSize=fs+"px";}\n'
     +'    if(dscs.length){\n'
-    +'      var ds=Math.round(th*.38);\n'
+    +'      var ds=Math.round(th*.42);\n'
     +'      dscs.forEach(function(e){e.style.fontSize=ds+"px";});\n'
     +'      while(ds>6&&dscs.some(function(e){return e.scrollWidth>tw||e.offsetHeight>dH;}))\n'
     +'        {ds--;dscs.forEach(function(e){e.style.fontSize=ds+"px";});}\n'
