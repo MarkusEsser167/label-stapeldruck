@@ -85,8 +85,42 @@ var FMT={
   mittel:{mmW:210,  mmH:90,    padMm:6, qrMm:40},
   gross: {mmW:210,  mmH:148.5, padMm:8, qrMm:50}
 };
+var ART_SHARE=0.40, LH_ART=1.05, LH_DSC=1.25, SAFE=0.97;
 
 var artikel=[],cancelled=false;
+
+/* ---------- Textbreiten-Messung via Canvas (aufloesungsunabhaengig) ---------- */
+var _cv=document.createElement('canvas'),_cx=_cv.getContext('2d');
+function widthRatio(txt,bold){
+  _cx.font=(bold?'bold ':'')+'100px Arial, Helvetica, sans-serif';
+  return _cx.measureText(String(txt)).width/100;
+}
+
+/* Berechnet Layout + Schriftgroessen in Millimetern - unabhaengig von Fenstergroesse */
+function calcLayout(a,f){
+  var gap=f.padMm/2;
+  var dvd=0.3;
+  var txtW=f.mmW-2*f.padMm-f.qrMm-2*gap-dvd;
+  var availH=f.mmH-2*f.padMm;
+  var descs=[a.z1,a.z2,a.z3].filter(Boolean);
+
+  var artBox=availH*ART_SHARE;
+  var dscBox=availH*(1-ART_SHARE);
+
+  var rA=widthRatio(a.nr,true);
+  var artFs=Math.min(artBox/LH_ART, rA>0?txtW/rA:artBox)*SAFE;
+
+  var dscFs=0;
+  if(descs.length){
+    dscFs=(dscBox/descs.length)/LH_DSC;
+    descs.forEach(function(t){
+      var r=widthRatio(t,false);
+      if(r>0)dscFs=Math.min(dscFs,txtW/r);
+    });
+    dscFs*=SAFE;
+  }
+  return {gap:gap,dvd:dvd,txtW:txtW,availH:availH,descs:descs,artFs:artFs,dscFs:dscFs};
+}
 
 async function loadData(){
   setSt('load-status','Lade Artikeldaten…','inf');
@@ -115,8 +149,7 @@ async function loadData(){
 function confirmPrint(){
   var n=artikel.length;
   document.getElementById('warn-txt').textContent='Es werden '+n.toLocaleString('de-DE')+' Etiketten in einem Druckjob gesendet. Bitte Drucker und Format prüfen.';
-  var wb=document.getElementById('warn-box');
-  wb.className='warn-box visible';
+  document.getElementById('warn-box').className='warn-box visible';
   document.getElementById('btn-start').style.display='none';
 }
 
@@ -151,7 +184,7 @@ async function startPrint(){
   // QR-Codes als Data-URLs vorberechnen (off-screen)
   var qrDataUrls=[];
   var tmpDiv=document.createElement('div');
-  tmpDiv.style.cssText='position:absolute;left:-9999px;top:-9999px;width:120px;height:120px;';
+  tmpDiv.style.cssText='position:absolute;left:-9999px;top:-9999px;';
   document.body.appendChild(tmpDiv);
 
   for(var i=0;i<total;i++){
@@ -159,7 +192,7 @@ async function startPrint(){
     var a=artikel[i];
     try{
       tmpDiv.innerHTML='';
-      var qrObj=new QRCode(tmpDiv,{text:a.nr,width:120,height:120,correctLevel:QRCode.CorrectLevel.M});
+      new QRCode(tmpDiv,{text:a.nr,width:300,height:300,correctLevel:QRCode.CorrectLevel.M});
       await new Promise(function(r){setTimeout(r,30);});
       var canvas=tmpDiv.querySelector('canvas');
       qrDataUrls.push(canvas?canvas.toDataURL('image/png'):'');
@@ -168,8 +201,7 @@ async function startPrint(){
       errors.push('QR-Fehler '+a.nr+': '+e.message);
       addLog('⚠ QR-Fehler: '+a.nr);
     }
-    var pct=Math.round((i+1)/total*50);
-    setProgress(pct,'QR-Codes: '+(i+1)+'/'+total);
+    setProgress(Math.round((i+1)/total*50),'QR-Codes: '+(i+1)+'/'+total);
   }
   document.body.removeChild(tmpDiv);
 
@@ -178,78 +210,53 @@ async function startPrint(){
   setProgress(50,'Erstelle Druckdokument…');
   addLog('Generiere Druckdokument…');
 
-  // Druckseiten zusammenbauen
+  // Druckseiten zusammenbauen - Schriftgroessen je Artikel in mm berechnet
   var pages='';
+  var L0=null;
   for(var i=0;i<total;i++){
     if(cancelled)break;
     var a=artikel[i];
+    var L=calcLayout(a,f);
+    if(!L0)L0=L;
     var qrSrc=qrDataUrls[i]||'';
-    var descs=[a.z1,a.z2,a.z3].filter(Boolean);
-    var dHtml=descs.map(function(d){return '<div class="dsc">'+hEsc(d)+'</div>';}).join('');
+    var dHtml=L.descs.map(function(d){return '<div class="dsc" style="font-size:'+L.dscFs.toFixed(2)+'mm">'+hEsc(d)+'</div>';}).join('');
     var isLast=(i===total-1);
-    pages+='<div class="page">'
+    pages+='<div class="page"'+(isLast?'':' style="page-break-after:always"')+'>'
       +'<div class="wrap">'
-      +'<div class="qsec">'+(qrSrc?'<img src="'+qrSrc+'" width="100%" height="100%">':'')+'</div>'
+      +'<div class="qsec">'+(qrSrc?'<img src="'+qrSrc+'" alt="">':'')+'</div>'
       +'<div class="dvd"></div>'
-      +'<div class="txt" data-art="'+hAttr(a.nr)+'">'
-      +'<div class="art">'+hEsc(a.nr)+'</div>'+dHtml
+      +'<div class="txt">'
+      +'<div class="art" style="font-size:'+L.artFs.toFixed(2)+'mm">'+hEsc(a.nr)+'</div>'+dHtml
       +'</div></div>'
       +(isKlein?'':'<div class="brd"></div>')
-      +(isLast?'':'<div style="page-break-after:always;"></div>')
       +'</div>';
     if(i%50===0){
-      var pct=50+Math.round((i+1)/total*40);
-      setProgress(pct,'Seiten: '+(i+1)+'/'+total);
+      setProgress(50+Math.round((i+1)/total*40),'Seiten: '+(i+1)+'/'+total);
       await new Promise(function(r){setTimeout(r,0);});
     }
   }
 
   if(cancelled)return;
 
-  var pw=f.mmW+'mm',ph=f.mmH+'mm';
-  var pageW=isKlein?pw:'210mm';
-  var pageH=isKlein?ph:'297mm';
-  var html='<!DOCTYPE html>\n<html lang="de"><head><meta charset="UTF-8">\n'
-    +'<style>\n'
-    +'*{box-sizing:border-box;margin:0;padding:0;}\n'
-    +'@page{size:'+pageW+' '+pageH+';margin:0;}\n'
-    +'html,body{background:white;}\n'
-    +'.page{position:relative;width:'+pageW+';height:'+pageH+';overflow:hidden;}\n'
-    +'.wrap{position:absolute;top:0;left:0;width:'+pw+';height:'+ph+';display:flex;align-items:stretch;'
-    +'padding:'+f.padMm+'mm;gap:'+(f.padMm/2).toFixed(1)+'mm;background:white;font-family:Arial,sans-serif;}\n'
-    +'.qsec{width:'+f.qrMm+'mm;min-width:'+f.qrMm+'mm;display:flex;align-items:center;justify-content:center;}\n'
-    +'.qsec img{width:100%;height:100%;object-fit:contain;}\n'
-    +'.dvd{width:.3mm;background:#999;flex-shrink:0;margin:0;}\n'
-    +'.txt{flex:1;display:flex;flex-direction:column;justify-content:center;'
-    +'overflow:hidden;padding:'+(f.padMm/2).toFixed(1)+'mm;gap:'+(f.padMm*.25).toFixed(1)+'mm;}\n'
-    +'.art{font-weight:bold;line-height:1.1;overflow:hidden;white-space:nowrap;max-width:100%;}\n'
-    +'.dsc{line-height:1.25;color:#222;overflow:hidden;white-space:nowrap;max-width:100%;}\n'
-    +'.brd{position:absolute;top:0;left:0;width:'+pw+';height:'+ph+';border:.3mm solid #bbb;pointer-events:none;}\n'
-    +'<\/style><\/head>\n<body>\n'+pages+'\n'
-    +'<script>\n'
-    +'window.addEventListener("load",function(){\n'
-    +'  var all=[].slice.call(document.querySelectorAll(".txt"));\n'
-    +'  all.forEach(function(txt){\n'
-    +'    var cs=getComputedStyle(txt);\n'
-    +'    var padL=parseFloat(cs.paddingLeft)||0;\n'
-    +'    var padR=parseFloat(cs.paddingRight)||0;\n'
-    +'    var tw=txt.offsetWidth-padL-padR-2,th=txt.offsetHeight;\n'
-    +'    var art=txt.querySelector(".art");\n'
-    +'    var dscs=[].slice.call(txt.querySelectorAll(".dsc"));\n'
-    +'    var aH=th*.44,dH=dscs.length?(th*.56)/dscs.length:0;\n'
-    +'    var fs=Math.round(th*.85);\n'
-    +'    art.style.fontSize=fs+"px";\n'
-    +'    while(fs>7&&(art.scrollWidth>tw||art.offsetHeight>aH)){fs--;art.style.fontSize=fs+"px";}\n'
-    +'    if(dscs.length){\n'
-    +'      var ds=Math.round(th*.42);\n'
-    +'      dscs.forEach(function(e){e.style.fontSize=ds+"px";});\n'
-    +'      while(ds>6&&dscs.some(function(e){return e.scrollWidth>tw||e.offsetHeight>dH;}))\n'
-    +'        {ds--;dscs.forEach(function(e){e.style.fontSize=ds+"px";});}\n'
-    +'    }\n'
-    +'  });\n'
-    +'  setTimeout(function(){window.print();setTimeout(function(){window.close();},1000);},600);\n'
-    +'});\n'
-    +'<\/script>\n<\/body><\/html>';
+  var pageW=isKlein?f.mmW+'mm':'210mm';
+  var pageH=isKlein?f.mmH+'mm':'297mm';
+  var css=[
+    '*{box-sizing:border-box;margin:0;padding:0;}',
+    '@page{size:'+pageW+' '+pageH+';margin:0;}',
+    'html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}',
+    '.page{position:relative;width:'+pageW+';height:'+pageH+';overflow:hidden;}',
+    '.wrap{position:absolute;top:0;left:0;width:'+f.mmW+'mm;height:'+f.mmH+'mm;display:flex;align-items:center;padding:'+f.padMm+'mm;background:#fff;font-family:Arial,Helvetica,sans-serif;}',
+    '.qsec{width:'+f.qrMm+'mm;height:'+f.qrMm+'mm;flex:0 0 '+f.qrMm+'mm;}',
+    '.qsec img{width:100%;height:100%;display:block;}',
+    '.dvd{width:'+L0.dvd+'mm;align-self:stretch;background:#999;margin:0 '+L0.gap+'mm;flex:0 0 auto;}',
+    '.txt{width:'+L0.txtW.toFixed(2)+'mm;overflow:hidden;}',
+    '.art{font-weight:bold;line-height:'+LH_ART+';white-space:nowrap;}',
+    '.dsc{line-height:'+LH_DSC+';color:#222;white-space:nowrap;}',
+    '.brd{position:absolute;top:0;left:0;width:'+f.mmW+'mm;height:'+f.mmH+'mm;border:.3mm solid #bbb;pointer-events:none;}'
+  ].join('\n');
+
+  var html='<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Etiketten</title><style>'
+    +css+'</style></head><body>'+pages+'</body></html>';
 
   setProgress(95,'Öffne Druckfenster…');
   var w=window.open('','_blank');
@@ -260,7 +267,10 @@ async function startPrint(){
     document.getElementById('btn-start').disabled=false;
     return;
   }
-  w.document.write(html);w.document.close();
+  w.document.open();w.document.write(html);w.document.close();
+  setTimeout(function(){
+    try{w.focus();w.print();}catch(e){}
+  },800);
 
   setProgress(100,'Fertig!');
   setSt('print-status','✔ '+total.toLocaleString('de-DE')+' Etiketten an Drucker gesendet.'+(errors.length?' ('+errors.length+' Fehler)':''),'ok');
@@ -279,7 +289,6 @@ function setSt(id,msg,type){var el=document.getElementById(id);el.textContent=ms
 function addLog(msg){var l=document.getElementById('log');l.innerHTML+=msg+'<br>';l.scrollTop=l.scrollHeight;}
 function clearLog(){document.getElementById('log').innerHTML='';}
 function hEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function hAttr(s){return String(s).replace(/"/g,'&quot;');}
 
 loadData();
 if('serviceWorker'in navigator){
