@@ -12,6 +12,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Arial,sans-serif;background:#f0f0f0;min-height:100vh;}
 .topbar{background:#4a0072;color:white;padding:12px 20px;font-size:1.1em;font-weight:bold;display:flex;align-items:center;gap:10px;}
+.ver{margin-left:auto;font-size:.72em;font-weight:normal;opacity:.85;letter-spacing:.05em;}
 .main{max-width:700px;margin:24px auto;padding:0 16px;display:flex;flex-direction:column;gap:14px;}
 .card{background:white;border-radius:6px;border:1px solid #ddd;padding:16px;}
 .card-title{font-size:.78em;font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#666;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #eee;}
@@ -42,12 +43,12 @@ body{font-family:Arial,sans-serif;background:#f0f0f0;min-height:100vh;}
 </style>
 </head>
 <body>
-<div class="topbar">📦 Label Stapeldruck – Wego Systembaustoffe</div>
+<div class="topbar">📦 Label Stapeldruck – Wego Systembaustoffe <span class="ver">v5</span></div>
 <div class="main">
   <div class="card">
     <div class="card-title">Format</div>
     <div class="format-list">
-      <label><input type="radio" name="fmt" value="klein" checked> Klein – 57 × 31 mm &nbsp;(Zebra ZD421)</label>
+      <label><input type="radio" name="fmt" value="klein" checked> Klein – 57 × 30,9 mm &nbsp;(Zebra ZD421)</label>
       <label><input type="radio" name="fmt" value="mittel"> Mittel – 210 × 90 mm &nbsp;(Laserdrucker)</label>
       <label><input type="radio" name="fmt" value="gross"> Groß – A5 210 × 148 mm &nbsp;(Laserdrucker)</label>
     </div>
@@ -80,8 +81,9 @@ body{font-family:Arial,sans-serif;background:#f0f0f0;min-height:100vh;}
 </div>
 
 <script>
+var VERSION='v5';
 var FMT={
-  klein: {mmW:57,   mmH:31,    padMm:2, qrMm:20, artShare:0.30, wrap:true},
+  klein: {mmW:57,   mmH:30.9,  padMm:2, qrMm:20.5, artShare:0.30, wrap:true},
   mittel:{mmW:210,  mmH:90,    padMm:6, qrMm:40},
   gross: {mmW:210,  mmH:148.5, padMm:8, qrMm:50}
 };
@@ -100,8 +102,7 @@ function widthRatio(txt,bold){
   return v;
 }
 
-/* Zaehlt die Zeilen, die der Browser beim Umbruch an Wortgrenzen tatsaechlich
-   erzeugt - die frueher benutzte Schaetzung ueber die Gesamtbreite lag zu niedrig. */
+/* Zaehlt die Zeilen, die der Browser beim Umbruch an Wortgrenzen tatsaechlich erzeugt */
 function wrapLineCount(txt,fs,maxW){
   var words=String(txt).split(/\s+/).filter(Boolean);
   if(!words.length)return 1;
@@ -134,7 +135,7 @@ function calcLayout(a,f){
   var dvd=0.3;
   var reserve=f.wrap?0.8:1.5;
   var txtW=f.mmW-2*f.padMm-f.qrMm-2*gap-dvd;
-  var budget=txtW-reserve;
+  var budget=Math.max(2,txtW-reserve);
   var availH=f.mmH-2*f.padMm;
   var descs=[a.z1,a.z2,a.z3].filter(Boolean);
   var share=f.artShare||ART_SHARE;
